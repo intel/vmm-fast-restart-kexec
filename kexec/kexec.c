@@ -34,6 +34,8 @@
 #include <sys/reboot.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <sys/syscall.h>
+#include <linux/reboot.h>
 #include <fcntl.h>
 #ifndef _O_BINARY
 #define _O_BINARY 0
@@ -908,7 +910,11 @@ static int my_exec(void)
 {
 	if (xen_present())
 		xen_kexec_exec(kexec_flags);
-	else
+	else if (kexec_flags & KEXEC_LIVE_UPDATE) {
+		int live_update = 1;
+		syscall(__NR_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
+			LINUX_REBOOT_CMD_KEXEC, &live_update);
+	} else
 		reboot(LINUX_REBOOT_CMD_KEXEC);
 	/* I have failed if I make it here */
 	fprintf(stderr, "kexec failed: %s\n", 
@@ -1404,10 +1410,6 @@ int main(int argc, char *argv[])
 			kexec_file_flags |= KEXEC_FILE_UNLOAD;
 			break;
                 case OPT_EXEC_LIVE_UPDATE:
-			if ( !xen_present() ) {
-				fprintf(stderr, "--exec-live-update only works under xen.\n");
-                                return 1;
-                        }
 			kexec_flags |= KEXEC_LIVE_UPDATE;
 			/* fallthrough */
 		case OPT_EXEC:
